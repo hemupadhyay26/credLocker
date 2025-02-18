@@ -1,0 +1,36 @@
+{
+  "name": "credlocker",
+  "version": "1.0.0",
+  "main": "dist/cli.js",
+  "scripts": {
+    "dev": "tsx src/cli.ts",
+    "start": "node dist/cli.js",
+    "build": "tsc"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@types/crypto-js": "^4.2.2",
+    "@types/fs-extra": "^11.0.4",
+    "@types/node": "^22.13.4",
+    "@types/winston": "^2.4.4",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  },
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "chalk": "^5.4.1",
+    "commander": "^13.1.0",
+    "crypto-js": "^4.2.0",
+    "dotenv": "^16.4.7",
+    "fs-extra": "^11.3.0",
+    "inquirer": "^12.4.2",
+    "keytar": "^7.9.0",
+    "winston": "^3.17.0"
+  },
+  "bin": {
+    "aws-cred-manager": "dist/cli.js"
+  }
+}
