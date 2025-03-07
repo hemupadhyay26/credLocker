@@ -3,23 +3,10 @@ import { config } from "../config/config";
 import { createOrUpdateJsonFile, readJsonFile, writeJsonFile } from "../utils/fileOperations"; 
 import { v4 as uuidv4 } from "uuid"; 
 import dayjs from "dayjs"; 
+import { Credential, ConfigData } from "../types"; // Import types
 
 const configFilePath = config.configFilePath;
 const MASTER_PASSWORD_KEY = config.MASTER_PASSWORD_KEY;
-
-interface Credential {
-  id: string;
-  name: string;
-  username: string;
-  password: string;
-  accountIdentifier?: string;
-  createdAt: string;
-  lastUpdatedAt: string;
-}
-
-interface ConfigData {
-  [key: string]: Credential[];
-}
 
 export async function appendCredentials(keyType: string, newCredentials: Omit<Credential, 'id' | 'createdAt' | 'lastUpdatedAt'>, encryptData: boolean): Promise<void> {
   let configData: ConfigData = await readJsonFile(configFilePath); // Read the existing JSON file
@@ -103,7 +90,8 @@ export async function decryptCredential(credential: Credential): Promise<Credent
     credential.password = decryptedPassword !== null ? decryptedPassword : credential.password;
   }
   if (credential.accountIdentifier) {
-    credential.accountIdentifier = (await decrypt(credential.accountIdentifier, masterPassword)) || undefined;
+    const decryptedAccountIdentifier = await decrypt(credential.accountIdentifier, masterPassword);
+    credential.accountIdentifier = decryptedAccountIdentifier !== null ? decryptedAccountIdentifier : credential.accountIdentifier;
   }
 
   return credential;
@@ -142,4 +130,34 @@ export async function deleteCredentialByNameOrId(filePath: string, identifier: s
 
   // Write the updated data back to the JSON file
   await writeJsonFile(filePath, configData);
+}
+
+export async function updateCredential(keyType: string, identifier: string, updatedData: Partial<Credential>, encryptData: boolean): Promise<void> {
+  let configData: ConfigData = await readJsonFile(configFilePath);
+
+  if (!Array.isArray(configData[keyType])) {
+    return console.log(`No credentials found for key type '${keyType}'.`);
+  }
+
+  const index = configData[keyType].findIndex(cred => cred.name === identifier || cred.id === identifier);
+  if (index === -1) return console.log(`No credential found with name or ID '${identifier}'.`);
+
+  const existingCredential = configData[keyType][index];
+  const masterPassword = await getMasterPassword();
+  if (!masterPassword) return console.log("Master password is not set. Please run 'node cli.js configure' to set it.");
+
+  const updateField = async (field: keyof Credential, value?: string) =>
+    value !== undefined ? (encryptData ? await encrypt(value, masterPassword) : value) : existingCredential[field];
+
+  const updatedCredential: Credential = {
+    ...existingCredential,
+    ...updatedData,
+    password: (await updateField('password', updatedData.password)) || '',
+    accountIdentifier: (await updateField('accountIdentifier', updatedData.accountIdentifier)) || '',
+    lastUpdatedAt: dayjs().toISOString(),
+  };
+
+  configData[keyType][index] = updatedCredential;
+  await createOrUpdateJsonFile(configFilePath, configData);
+  console.log(`Credential with name or ID '${identifier}' has been updated.`);
 }

@@ -5,13 +5,15 @@
   "scripts": {
     "dev": "tsx src/cli.ts",
     "start": "node dist/cli.js",
-    "build": "tsc"
+    "build": "tsc",
+    "watch": "nodemon --watch src --exec \"npm run build\""
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "devDependencies": {
+    "@types/copy-paste": "^1.1.33",
     "@types/crypto-js": "^4.2.2",
     "@types/fs-extra": "^11.0.4",
     "@types/node": "^22.13.4",
@@ -22,7 +24,10 @@
   "dependencies": {
     "bcrypt": "^5.1.1",
     "chalk": "^5.4.1",
+    "cli-table3": "^0.6.5",
+    "clipboardy": "^4.0.0",
     "commander": "^13.1.0",
+    "copy-paste": "^1.5.3",
     "crypto-js": "^4.2.0",
     "dayjs": "^1.11.13",
     "dotenv": "^16.4.7",

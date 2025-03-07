@@ -3,6 +3,8 @@ import { fetchCredentials, decryptCredential } from "../services/credentials"; /
 import { getMasterPassword } from "../services/credentials"; // Import service for master password
 import { handleCommandError } from "../utils/errorHandler";
 import { Command } from "commander";
+import { Credential } from "../types"; // Import types
+import { printCredentials, printNoCredentialFound, printNoCredentialsFound } from "../utils/printUtils"; // Import print utilities
 
 async function getCredentialsCommandFun(decrypt: boolean, identifier: string | undefined) {
   await getMasterPassword(); // Ensure the master password is set
@@ -16,10 +18,10 @@ async function getCredentialsCommandFun(decrypt: boolean, identifier: string | u
     },
   ]);
 
-  const credentials = await fetchCredentials(answers.keyType);
+  const credentials: Credential[] = await fetchCredentials(answers.keyType);
 
   if (credentials && credentials.length > 0) {
-    let selectedCreds;
+    let selectedCreds: Credential[];
 
     if (!identifier) {
       const credentialNames = credentials.map((cred) => cred.name);
@@ -42,21 +44,19 @@ async function getCredentialsCommandFun(decrypt: boolean, identifier: string | u
       );
 
       if (selectedCreds.length === 0) {
-        console.log(`No credential found with name or ID ${identifier}.`);
+        printNoCredentialFound(identifier);
         return;
       }
     }
 
-    for (const credential of selectedCreds) {
-      if (decrypt) {
-        const decryptedCredential = await decryptCredential(credential);
-        console.log("Retrieved decrypted credential:", decryptedCredential);
-      } else {
-        console.log("Retrieved credential:", credential);
-      }
+    if (decrypt) {
+      const decryptedCreds = await Promise.all(selectedCreds.map(decryptCredential));
+      printCredentials(decryptedCreds.filter((cred): cred is Credential => cred !== null));
+    } else {
+      printCredentials(selectedCreds);
     }
   } else {
-    console.log(`No credentials found for ${answers.keyType}.`);
+    printNoCredentialsFound(answers.keyType);
   }
 }
 

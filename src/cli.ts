@@ -6,6 +6,7 @@ import { configureCommand } from './commands/configure';
 import { setCredentialsCommand } from './commands/set';
 import { getCredentialsCommand } from './commands/get';
 import { deleteCredentialAction } from './commands/deleteCredentialCommand';
+import { updateCredentialsCommand } from "./commands/update"
 
 const program = new Command();
 
@@ -52,6 +53,15 @@ program
     const { identifier } = cmd;
     // Call the function from the commands folder to handle delete logic
     await deleteCredentialAction(identifier);
+  });
+
+  program
+  .command('update')
+  .description('Update existing credentials')
+  .option('-i, --identifier <identifier>', 'Specify the credential name or ID')
+  .action(async (cmd) => {
+    const { identifier } = cmd;
+    await updateCredentialsCommand(identifier);
   });
 
 // Graceful shutdown function
