@@ -1,72 +1,81 @@
+#!/usr/bin/env node
+
+// Your CLI code below
+import { Command } from 'commander';
 import { configureCommand } from './commands/configure';
 import { setCredentialsCommand } from './commands/set';
 import { getCredentialsCommand } from './commands/get';
+import { deleteCredentialAction } from './commands/deleteCredentialCommand';
 
-async function main() {
-  const args = process.argv.slice(2);
+const program = new Command();
 
-  if (args[0] === "configure") {
-    await configureCommand();
-  } else if (args[0] === "set") {
+program
+  .name('cli-package-name') // This will be the name of your CLI
+  .description('CLI application to manage credentials')
+  .version('1.0.0');
+
+// Define the "configure" command
+program
+  .command("configure")
+  .description("Configure the application settings")
+  .option("-p, --pass <password>", "Set the master password directly from the command line")
+  .action(async (cmd) => {
+    const { pass } = cmd; // Get the password from the flag
+    await configureCommand(pass); // Pass the password to the command function
+  });
+
+// Define the "set" command
+program
+  .command('set')
+  .description('Set credentials for AWS logging')
+  .action(async () => {
     await setCredentialsCommand();
-  } else if (args[0] === "get") {
-    await getCredentialsCommand();
-  } else {
-    console.info("Please use 'configure', 'set', or 'get' as a command.");
-  }
-}
+  });
 
-// Graceful shutdown function to clean up resources before exit
+// Define the "get" command
+program
+  .command("get")
+  .description("Get credentials from storage")
+  .option("-d, --decrypt", "Decrypt credentials and show them") // Add the --decrypt flag
+  .option("-i, --identifier <identifier>", "Specify the credential name or ID") // Add the --identifier flag
+  .action(async (cmd) => {
+    const { decrypt, identifier } = cmd; // Get the decrypt flag and identifier
+    await getCredentialsCommand(decrypt, identifier); // Pass the flags to the command function
+  });
+
+
+  program
+  .command('delete')
+  .description('Delete a credential by name or ID')
+  .option('-i, --identifier <identifier>', 'Credential identifier (name or ID)', '')
+  .action(async (cmd) => {
+    const { identifier } = cmd;
+    // Call the function from the commands folder to handle delete logic
+    await deleteCredentialAction(identifier);
+  });
+
+// Graceful shutdown function
 async function gracefulShutdown() {
-  console.info("Received shutdown signal, cleaning up...");
-
-  // Perform any necessary cleanup here (e.g., closing database connections, removing temporary files)
-  // Example: dbConnection.close();
-
-  console.info("Cleanup complete, shutting down.");
+  console.info('Received shutdown signal, cleaning up...');
+  console.info('Cleanup complete, shutting down.');
   process.exit(0); // Exit gracefully
 }
 
 // Catch unhandled errors and exceptions
 function handleError(error: any) {
-  console.error("An uncaught exception or unhandled promise rejection occurred:", error);
-
-  // Gracefully shutdown after logging the error
+  console.error('An uncaught exception or unhandled promise rejection occurred:', error);
   gracefulShutdown();
 }
 
-// Main program execution with error handling
+// Main function that invokes the program
 async function runApp() {
   try {
-    await main();
+    await program.parseAsync(process.argv); // This parses the command-line arguments
   } catch (error) {
-    console.error("An error occurred:", error);
-
-    // If error occurs, gracefully shutdown
+    console.error('An error occurred:', error);
     await gracefulShutdown();
   }
 }
-
-// Listen for termination signals and handle them
-process.on('SIGINT', () => {
-  console.info("SIGINT received, shutting down...");
-  gracefulShutdown();
-});
-
-process.on('SIGTERM', () => {
-  console.info("SIGTERM received, shutting down...");
-  gracefulShutdown();
-});
-
-// Handle uncaught exceptions (e.g., code that throws unhandled errors)
-process.on('uncaughtException', (error) => {
-  handleError(error);
-});
-
-// Handle unhandled promise rejections (if a promise is rejected but not caught)
-process.on('unhandledRejection', (reason: any) => {
-  handleError(reason);
-});
 
 // Start the application
 runApp();

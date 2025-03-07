@@ -1,10 +1,10 @@
 import inquirer from "inquirer";
-import { fetchCredentials, decryptCredentials } from "../services/credentials"; // Import services for fetching and decrypting
+import { fetchCredentials, decryptCredential } from "../services/credentials"; // Import services for fetching and decrypting
 import { getMasterPassword } from "../services/credentials"; // Import service for master password
 import { handleCommandError } from "../utils/errorHandler";
+import { Command } from "commander";
 
-
-async function getCredentialsCommandfun() {
+async function getCredentialsCommandFun(decrypt: boolean, identifier: string | undefined) {
   await getMasterPassword(); // Ensure the master password is set
 
   const answers = await inquirer.prompt([
@@ -19,28 +19,45 @@ async function getCredentialsCommandfun() {
   const credentials = await fetchCredentials(answers.keyType);
 
   if (credentials && credentials.length > 0) {
-    const { masterPassword } = await inquirer.prompt([
-      {
-        type: "password",
-        name: "masterPassword",
-        message: "Enter your master password:",
-        mask: "*",
-        validate: (input) => (input ? true : "Master password cannot be empty"),
-      },
-    ]);
+    let selectedCreds;
 
-    const savedMasterPassword = await getMasterPassword();
-    if (masterPassword !== savedMasterPassword) {
-      console.log("Invalid master password.");
-      return;
+    if (!identifier) {
+      const credentialNames = credentials.map((cred) => cred.name);
+
+      const selectedCredentials = await inquirer.prompt([
+        {
+          type: "checkbox",
+          name: "selectedNames",
+          message: "Select the credentials to retrieve:",
+          choices: credentialNames,
+        },
+      ]);
+
+      selectedCreds = credentials.filter((cred) =>
+        selectedCredentials.selectedNames.includes(cred.name)
+      );
+    } else {
+      selectedCreds = credentials.filter(
+        (cred) => cred.name === identifier || cred.id === identifier
+      );
+
+      if (selectedCreds.length === 0) {
+        console.log(`No credential found with name or ID ${identifier}.`);
+        return;
+      }
     }
 
-    const decryptedCredentials = await decryptCredentials(answers.keyType);
-    console.log("Retrieved decrypted credentials:", decryptedCredentials);
+    for (const credential of selectedCreds) {
+      if (decrypt) {
+        const decryptedCredential = await decryptCredential(credential);
+        console.log("Retrieved decrypted credential:", decryptedCredential);
+      } else {
+        console.log("Retrieved credential:", credential);
+      }
+    }
   } else {
     console.log(`No credentials found for ${answers.keyType}.`);
   }
 }
 
-
-export const getCredentialsCommand = handleCommandError(getCredentialsCommandfun);
+export const getCredentialsCommand = handleCommandError(getCredentialsCommandFun);

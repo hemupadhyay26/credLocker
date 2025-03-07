@@ -1,5 +1,5 @@
 {
-  "name": "credlocker",
+  "name": "credlock",
   "version": "1.0.0",
   "main": "dist/cli.js",
   "scripts": {
@@ -24,13 +24,15 @@
     "chalk": "^5.4.1",
     "commander": "^13.1.0",
     "crypto-js": "^4.2.0",
+    "dayjs": "^1.11.13",
     "dotenv": "^16.4.7",
     "fs-extra": "^11.3.0",
     "inquirer": "^12.4.2",
     "keytar": "^7.9.0",
+    "uuid": "^11.0.5",
     "winston": "^3.17.0"
   },
   "bin": {
-    "aws-cred-manager": "dist/cli.js"
+    "credlock": "dist/cli.js"
   }
 }

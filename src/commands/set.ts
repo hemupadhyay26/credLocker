@@ -1,58 +1,74 @@
 import inquirer from "inquirer";
-import { appendCredentials } from "../services/credentials"; // Import service to append credentials
-import { getMasterPassword } from "../services/credentials"; // Import service for master password
-import logger from "../utils/logger"; // Import the logger
+import { appendCredentials } from "../services/credentials"; // Import service for appending credentials
 import { handleCommandError } from "../utils/errorHandler";
+import { Command } from "commander";
 
-export async function setCredentialsCommandfun() {
-  await getMasterPassword(); // Ensure the master password is set
+async function setCredentialsCommandFun() {
+  const nameAnswer = await inquirer.prompt([
+    {
+      type: "input",
+      name: "name",
+      message: "Enter the name for the credential owner:",
+      validate: (input) => input ? true : "This field is required.",
+    },
+  ]);
 
   const answers = await inquirer.prompt([
     {
       type: "list",
       name: "keyType",
-      message: "Select credential type:",
+      message: "Select credential type to set:",
       choices: ["IAM User", "AWS Root User"],
-    },
-    {
-      type: "input",
-      name: "username",
-      message: "Enter IAM Username:",
-      when: (answers) => answers.keyType === "IAM User",
-      validate: (input) => (input ? true : "Username cannot be empty"),
-    },
-    {
-      type: "password",
-      name: "password",
-      message: "Enter IAM Password:",
-      mask: "*",
-      when: (answers) => answers.keyType === "IAM User",
-      validate: (input) => (input ? true : "Password cannot be empty"),
-    },
-    {
-      type: "input",
-      name: "accountIdentifier",
-      message: "Enter Account ID or Account Alias:",
-      when: (answers) => answers.keyType === "IAM User",
-      validate: (input) => (input ? true : "Account Identifier cannot be empty"),
-    },
-    {
-      type: "confirm",
-      name: "encryptData",
-      message: "Would you like to encrypt the credentials?",
-      default: false,
     },
   ]);
 
-  logger.debug(`Selected Credential Type: ${answers.keyType}`);
-  logger.debug(`IAM Username: ${answers.username}`);
-  logger.debug(`Account Identifier: ${answers.accountIdentifier}`);
-  logger.debug(`Encryption Status: ${answers.encryptData ? "Enabled" : "Disabled"}`);
+  let credentialDetails: any = {
+    name: nameAnswer.name,
+    keyType: answers.keyType,
+  };
 
-  await appendCredentials(answers.keyType, answers, answers.encryptData);
+  if (answers.keyType === "IAM User") {
+    const iamAnswers = await inquirer.prompt([
+      {
+        type: "input",
+        name: "username",
+        message: "Enter the IAM username:",
+        validate: (input) => input ? true : "This field is required.",
+      },
+      {
+        type: "input",
+        name: "password",
+        message: "Enter the IAM password:",
+        validate: (input) => input ? true : "This field is required.",
+      },
+      {
+        type: "input",
+        name: "accountIdentifier",
+        message: "Enter the account identifier:",
+        validate: (input) => input ? true : "This field is required.",
+      },
+    ]);
+    credentialDetails = { ...credentialDetails, ...iamAnswers };
+  } else if (answers.keyType === "AWS Root User") {
+    const rootUserAnswers = await inquirer.prompt([
+      {
+        type: "input",
+        name: "username",
+        message: "Enter the AWS root username:",
+        validate: (input) => input ? true : "This field is required.",
+      },
+      {
+        type: "input",
+        name: "password",
+        message: "Enter the AWS root password:",
+        validate: (input) => input ? true : "This field is required.",
+      },
+    ]);
+    credentialDetails = { ...credentialDetails, ...rootUserAnswers };
+  }
 
-  logger.info(`${answers.keyType} credentials have been appended successfully.`);
+  await appendCredentials(answers.keyType, credentialDetails, true);
+  console.log("Credential saved successfully.");
 }
 
-
-export const setCredentialsCommand = handleCommandError(setCredentialsCommandfun);
+export const setCredentialsCommand = handleCommandError(setCredentialsCommandFun);

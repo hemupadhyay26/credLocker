@@ -1,38 +1,78 @@
-import { encrypt, decrypt } from "../services/encryption"; // Import encryption functions
-import { config } from "../config/config"; // Import the config object
-import { createOrUpdateJsonFile, fetchJsonKey, deleteJsonKey, readJsonFile } from "../utils/fileOperations"; // Import CRUD operations
+import { encrypt, decrypt } from "../services/encryption"; 
+import { config } from "../config/config";
+import { createOrUpdateJsonFile, readJsonFile, writeJsonFile } from "../utils/fileOperations"; 
+import { v4 as uuidv4 } from "uuid"; 
+import dayjs from "dayjs"; 
 
 const configFilePath = config.configFilePath;
 const MASTER_PASSWORD_KEY = config.MASTER_PASSWORD_KEY;
 
-// Function to append credentials to the JSON file, with optional encryption for sensitive fields
-export async function appendCredentials(keyType: string, newCredentials: any, encryptData: boolean) {
-  let configData: any = await readJsonFile(configFilePath); // Read the existing JSON file
+interface Credential {
+  id: string;
+  name: string;
+  username: string;
+  password: string;
+  accountIdentifier?: string;
+  createdAt: string;
+  lastUpdatedAt: string;
+}
+
+interface ConfigData {
+  [key: string]: Credential[];
+}
+
+export async function appendCredentials(keyType: string, newCredentials: Omit<Credential, 'id' | 'createdAt' | 'lastUpdatedAt'>, encryptData: boolean): Promise<void> {
+  let configData: ConfigData = await readJsonFile(configFilePath); // Read the existing JSON file
   
   if (!Array.isArray(configData[keyType])) {
     configData[keyType] = [];
   }
 
+  // Check if the name is unique by checking the existing credentials
+  const isNameUnique = !configData[keyType].some((cred) => cred.name === newCredentials.name);
+  if (!isNameUnique) {
+    console.log(`Error: The name '${newCredentials.name}' is already used for another credential.`);
+    return; // Reject the new credentials if name is not unique
+  }
+
+  // Encrypt sensitive data if needed
   if (encryptData) {
     const masterPassword = await getMasterPassword();
     if (!masterPassword) {
       console.log("Master password is not set. Please run 'node cli.js configure' to set it.");
       return;
     }
-    newCredentials.password = await encrypt(newCredentials.password, masterPassword);
+    
+    // Encrypt both password and accountIdentifier
+    if (newCredentials.password) {
+      newCredentials.password = await encrypt(newCredentials.password, masterPassword);
+    }
+    
+    if (newCredentials.accountIdentifier) {
+      newCredentials.accountIdentifier = await encrypt(newCredentials.accountIdentifier, masterPassword);
+    }
   }
 
-  configData[keyType].push(newCredentials);
+  // Add timestamps and unique ID
+  const currentTime = dayjs().toISOString(); // ISO format timestamp
+  const credential: Credential = {
+    ...newCredentials,
+    id: uuidv4(), // Generate unique ID using UUID
+    createdAt: currentTime,
+    lastUpdatedAt: currentTime,
+  };
+
+  configData[keyType].push(credential);
 
   await createOrUpdateJsonFile(configFilePath, configData); // Use the utility to save the updated data
 
-  console.log(`${keyType} credentials appended to 'credentials.json'.`);
+  console.log(`${keyType} credentials for '${newCredentials.name}' have been appended to 'credentials.json'.`);
 }
 
-export async function getMasterPassword() {
-  let configData: any = await readJsonFile(configFilePath); // Read the config file
+export async function getMasterPassword(): Promise<string> {
+  const configData: ConfigData = await readJsonFile(configFilePath); // Read the config file
 
-  const masterPassword = configData[MASTER_PASSWORD_KEY];
+  const masterPassword = configData[MASTER_PASSWORD_KEY] as unknown as string;
 
   if (!masterPassword) {
     console.log("Master password is not set. Please run 'configure' first.");
@@ -42,64 +82,64 @@ export async function getMasterPassword() {
   return masterPassword;
 }
 
-// Function to ensure the credentials file exists and is loaded
-async function ensureCredentialsFileExists() {
-  let configData: any = await readJsonFile(configFilePath); // Read config data
-
-  if (!configData) {
-    console.log("No credentials file found.");
-    return {};
-  }
-
-  return configData;
-}
-
 // Function to fetch credentials from the file
-export async function fetchCredentials(keyType: string): Promise<any[]> {
-  const configData: any = await readJsonFile(configFilePath); // Read config file
+export async function fetchCredentials(keyType: string): Promise<Credential[]> {
+  const configData: ConfigData = await readJsonFile(configFilePath); // Read config file
 
-  const credentials = configData[keyType] || [];
-  return credentials;
+  return configData[keyType] || [];
 }
 
 // Function to decrypt credentials
-export async function decryptCredentials(keyType: string): Promise<any[]> {
-  const credentials = await fetchCredentials(keyType); // Fetch the credentials
+export async function decryptCredential(credential: Credential): Promise<Credential | null> {
   const masterPassword = await getMasterPassword();
 
   if (!masterPassword) {
     console.log("Master password is not set.");
-    return [];
-  }
-
-  for (let i = 0; i < credentials.length; i++) {
-    const encryptedPassword = credentials[i].password;
-    if (encryptedPassword) {
-      credentials[i].password = await decrypt(encryptedPassword, masterPassword);
-    }
-  }
-
-  return credentials;
-}
-
-// Function to fetch specific credential and optionally decrypt it
-export async function getCredential(keyType: string, decryptData: boolean = true) {
-  const credentials = await fetchCredentials(keyType); // Fetch credentials
-
-  if (!credentials) {
-    console.log(`No credentials found for ${keyType}`);
     return null;
   }
 
-  if (decryptData) {
-    const decryptedCredentials = await decryptCredentials(keyType); // Decrypt credentials if required
-    decryptedCredentials.forEach((cred) => {
-      console.log(`Username: ${cred.username}`);
-      console.log(`Password: ${cred.password}`);
-    });
-    return decryptedCredentials;
-  } else {
-    console.log("Returning stored credentials without decryption.");
-    return credentials;
+  if (credential.password) {
+    const decryptedPassword = await decrypt(credential.password, masterPassword);
+    credential.password = decryptedPassword !== null ? decryptedPassword : credential.password;
   }
+  if (credential.accountIdentifier) {
+    credential.accountIdentifier = (await decrypt(credential.accountIdentifier, masterPassword)) || undefined;
+  }
+
+  return credential;
+}
+
+// Function to delete a credential by its name or id from the JSON file
+export async function deleteCredentialByNameOrId(filePath: string, identifier: string): Promise<void> {
+  let configData: ConfigData = await readJsonFile(filePath); // Read the existing JSON file
+
+  // Check if the data exists for the keyType, assuming it's in IAM User and AWS Root User
+  const keyTypes = ["IAM User", "AWS Root User"]; // Adjust this list based on your key types
+
+  let isDeleted = false;
+
+  for (const keyType of keyTypes) {
+    if (Array.isArray(configData[keyType])) {
+      const index = configData[keyType].findIndex(
+        (cred) => cred.name === identifier || cred.id === identifier // Match either by name or id
+      );
+
+      if (index !== -1) {
+        // Delete the credential if found
+        configData[keyType].splice(index, 1);
+        isDeleted = true;
+        console.log(`Credential with ${identifier} has been deleted from '${keyType}'`);
+        break; // Exit loop if credential is found and deleted
+      }
+    }
+  }
+
+  // If no credential was found for deletion
+  if (!isDeleted) {
+    console.log(`No credential found with identifier: ${identifier}`);
+    return;
+  }
+
+  // Write the updated data back to the JSON file
+  await writeJsonFile(filePath, configData);
 }
